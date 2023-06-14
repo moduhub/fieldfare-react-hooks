@@ -4,7 +4,10 @@
   "description": "Hooks for building React applications based on the Fieldfare framework",
   "author": "Adan Kvitschal",
   "license": "ISC",
-  "repository": "moduhub/fieldfare-react-hooks",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moduhub/fieldfare-react-hooks.git"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.js"
