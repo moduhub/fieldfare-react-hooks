@@ -22,8 +22,5 @@
   },
   "files": [
     "src"
-  ],
-  "dependencies": {
-    "@fieldfare/core": "file:.yalc/@fieldfare/core"
-  }
+  ]
 }
