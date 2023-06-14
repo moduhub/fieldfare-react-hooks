@@ -7,13 +7,7 @@
   "repository": "moduhub/fieldfare-react-hooks",
   "type": "module",
   "exports": {
-    ".": {
-      "require": "./src/index.js",
-      "import": "./src/index"
-    }
-  },
-  "engines": {
-    "node": ">=18"
+    ".": "./src/index.js"
   },
   "scripts": {},
   "peerDependencies": {
