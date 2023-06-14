@@ -9,6 +9,7 @@
     "url": "git+https://github.com/moduhub/fieldfare-react-hooks.git"
   },
   "type": "module",
+  "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"
   },
