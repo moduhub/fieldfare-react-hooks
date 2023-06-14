@@ -1,6 +1,6 @@
 {
   "name": "@fieldfare/react-hooks",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Hooks for building React applications based on the Fieldfare framework",
   "author": "Adan Kvitschal",
   "license": "ISC",
