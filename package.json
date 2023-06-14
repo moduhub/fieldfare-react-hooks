@@ -15,8 +15,8 @@
   },
   "scripts": {},
   "peerDependencies": {
-    "@fieldfare/core": "^1.0.0",
-    "react": "^17.0.2"
+    "@fieldfare/core": ">=1.0.0",
+    "react": ">=17.0.2"
   },
   "files": [
     "src"
