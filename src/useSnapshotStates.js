@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useChunkSet, useSelectedProviders } from "@fieldfare/react-hooks";
-import { uuid as snapshotServiceUUID } from "@fieldfare/core/services/Snapshot.js";
+import { useChunkSet, useSelectedProviders } from "./index.js";
+import { snapshotServiceUUID } from "@fieldfare/standard";
 
 export function useSnapshotStates(env, serviceUUID) {
     console.log('useSnapshotStates', snapshotServiceUUID)
