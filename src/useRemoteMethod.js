@@ -1,12 +1,6 @@
-import { useContext, useEffect, useState, useCallback} from 'react';
-import {
-    ServiceDescriptorContext,
-    SelectedHostsContext
-} from './FieldfareContext.js';
+import { useEffect, useState, useCallback} from 'react';
 
-export function useRemoteMethod(methodName, params) {
-    const serviceDescriptor = useContext(ServiceDescriptorContext);
-    const selectedProviders = useContext(SelectedHostsContext);
+export function useRemoteMethod(provider, serviceDescriptor, methodName, params) {
     const [serviceInstance, setServiceInstance] = useState(undefined);
     const [state, setState] = useState({
         status: 'loading',
@@ -16,35 +10,41 @@ export function useRemoteMethod(methodName, params) {
     useEffect(() => {
         if(!serviceDescriptor) {
             console.log('useRemoteMethod failed, no service descriptor');
-            return;
-        }
-        if(!selectedProviders
-        || selectedProviders.online.length === 0) {
-            console.log('useRemoteMethod failed, no online providers');
             setState({
                 status: 'error',
-                error: 'no online providers',
+                error: 'no service descriptor',
                 result: undefined
             });
             return;
         }
-        const service = selectedProviders.online[0].accessService(serviceDescriptor);
-        if(!service) {
+        if(!provider) {
+            console.log('useRemoteMethod failed, no provider');
             setState({
                 status: 'error',
-                error: 'method ' + methodName + ' not found',
+                error: 'no provider',
                 result: undefined
             });
             return;
         }
-        setServiceInstance(service);
-        setState({
-            status: 'idle',
-            error: undefined,
-            result: undefined
+        provider.accessService(serviceDescriptor)
+        .then((service) => {
+            setServiceInstance(service);
+            setState({
+                status: 'idle',
+                error: undefined,
+                result: undefined
+            });
+        })
+        .catch((error) => {
+            setState({
+                status: 'error',
+                error: error,
+                result: undefined
+            });
         });
-    }, [serviceDescriptor, selectedProviders]);
+    }, [serviceDescriptor, provider]);
     const call = useCallback(() => {
+        console.log('useRemoteMethod call', serviceInstance, methodName, params);
         if(!serviceInstance) {
             console.log('useRemoteMethod call failed, no service instance');
             setState({
@@ -77,12 +77,13 @@ export function useRemoteMethod(methodName, params) {
                 result: result
             });
         }).catch((error) => {
+            console.log('useRemoteMethod call failed', error);
             setState({
                 status: 'error',
-                error: error,
+                error: error.message,
                 result: undefined
             });
         });
-    }, [serviceInstance, params]);
+    }, [serviceInstance, methodName, params]);
     return {...state, call};
 }
