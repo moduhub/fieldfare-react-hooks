@@ -11,8 +11,9 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
             for(const [index, onlineHost] of selectedProviders.online.entries()) {
                 if(onlineHost.id == newOfflineHost.id) {
                     console.log(onlineHost.id + ' is now offline');
+                    selectedProviders.online = selectedProviders.online.slice(index, 1)
                     setSelectedProviders({
-                        online: selectedProviders.online.toSpliced(index, 1),
+                        online: selectedProviders.online,
                         offline: [...(selectedProviders.offline), newOfflineHost]
                     });
                     break;
@@ -22,9 +23,10 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
         const onlineEventHandler = RemoteHost.on('online', (newOnlineHost) => {
             for(const [index, offlineHost] of selectedProviders.offline.entries()) {
                 if(offlineHost.id == newOnlineHost.id) {
+                    selectedProviders.offline = selectedProviders.offline.slice(index, 1)
                     setSelectedProviders({
                         online: [...(selectedProviders.online), newOnlineHost],
-                        offline: selectedProviders.offline.toSpliced(index, 1)
+                        offline: selectedProviders.offline
                     });
                     break;
                 }
