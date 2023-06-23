@@ -13,8 +13,8 @@ export function useLocalHostState() {
                 }
                 for(const prop in newCollectionStates) {
                     if(!collectionStates[prop]
-                    || collectionStates[prop] != newCollectionStates[prop]) {
-                        //console.log('collection states updated ' + prop + ' from ' + collectionStates[prop] + ' to ' + newCollectionStates[prop]);
+                    || collectionStates[prop] !== newCollectionStates[prop]) {
+                        console.log('collection states updated ' + prop + ' from ' + collectionStates[prop] + ' to ' + newCollectionStates[prop]);
                         setCollectionStates(newCollectionStates);
                         return;
                     }

@@ -10,7 +10,6 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
         const offlineEventHandler = RemoteHost.on('offline', (newOfflineHost) => {
             for(const [index, onlineHost] of selectedProviders.online.entries()) {
                 if(onlineHost.id == newOfflineHost.id) {
-                    console.log(onlineHost.id + ' is now offline');
                     setSelectedProviders({
                         online: selectedProviders.online.toSpliced(index, 1),
                         offline: [...(selectedProviders.offline), newOfflineHost]
