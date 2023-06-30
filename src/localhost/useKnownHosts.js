@@ -26,7 +26,24 @@ export function useKnownHosts(env) {
 		if(!env) {
 			return;
 		}
-		const getAllProviders = async () => {
+		const getAllAdmins = async (prevKnownHosts) => {
+			let newKnownHosts;
+			const admins = await env.localCopy.getElement('admins');
+			if(!admins) {
+				return;
+			}
+			for await (const adminChunk of admins) {
+				const adminIdentifier = HostIdentifier.fromChunkIdentifier(adminChunk.id);
+				if(!prevKnownHosts.has(adminIdentifier)) {
+					if(!newKnownHosts) {
+						newKnownHosts = new Set(prevKnownHosts);
+					}
+					newKnownHosts.add(adminIdentifier);
+				}
+			}
+			return newKnownHosts;
+		}
+		const getAllProviders = async (prevKnownHosts) => {
 			let newKnownHosts;
 			const services = await env.localCopy.getElement('services');
 			if(!services) {
@@ -39,9 +56,9 @@ export function useKnownHosts(env) {
 				}
 				for await (const providerChunk of providers) {
 					const providerIdentifier = HostIdentifier.fromChunkIdentifier(providerChunk.id);
-					if(!knownHosts.has(providerIdentifier)) {
+					if(!prevKnownHosts.has(providerIdentifier)) {
 						if(!newKnownHosts) {
-							newKnownHosts = new Set(knownHosts);
+							newKnownHosts = new Set(prevKnownHosts);
 						}
 						newKnownHosts.add(providerIdentifier);
 					}
@@ -49,12 +66,19 @@ export function useKnownHosts(env) {
 			}
 			return newKnownHosts;
 		}
-		getAllProviders().then((newKnownHosts) => {
+		getAllProviders(knownHosts).then((newKnownHosts) => {
+			let nextKnownHosts = knownHosts;
 			if(newKnownHosts) {
-			   setKnownHosts(newKnownHosts);
+				setKnownHosts(newKnownHosts);
+				nextKnownHosts = newKnownHosts;
 			}
+			getAllAdmins(nextKnownHosts).then((newKnownHosts) => {
+				if(newKnownHosts) {
+					setKnownHosts(newKnownHosts);
+				}
+			});
 		}).catch((err) => {
-			console.log('error getting all providers', err);
+			console.log('error getting new known hosts', err);
 		});
 	}, [env, knownHosts]);
 	return knownHosts;
