@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback} from 'react';
 
-export function useRemoteMethod(provider, serviceDescriptor, methodName, params) {
+export function useRemoteMethod(provider, serviceDescriptor, methodName) {
     const [serviceInstance, setServiceInstance] = useState(undefined);
     const [state, setState] = useState({
         status: 'loading',
@@ -43,8 +43,8 @@ export function useRemoteMethod(provider, serviceDescriptor, methodName, params)
             });
         });
     }, [serviceDescriptor, provider]);
-    const call = useCallback(() => {
-        console.log('useRemoteMethod call', serviceInstance, methodName, params);
+    const call = useCallback((params) => {
+        console.log('useRemoteMethod call updated', serviceInstance, methodName);
         if(!serviceInstance) {
             console.log('useRemoteMethod call failed, no service instance');
             setState({
@@ -84,6 +84,6 @@ export function useRemoteMethod(provider, serviceDescriptor, methodName, params)
                 result: undefined
             });
         });
-    }, [serviceInstance, methodName, params]);
+    }, [serviceInstance, methodName]);
     return {...state, call};
 }
