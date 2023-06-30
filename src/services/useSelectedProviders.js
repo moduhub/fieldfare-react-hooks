@@ -43,11 +43,9 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
     useEffect(() => {
         if(!serviceUUID
         || Utils.isUUID(serviceUUID) == false) {
-            console.log('ProviderSelector failed, no service uuid');
             return;
         }
         if(!env) {
-            console.log('ProviderSelector failed, no environment');
             return;
         }
         env.localCopy.getElement(serviceUUID + '.providers')
