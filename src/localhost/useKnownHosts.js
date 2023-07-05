@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { HostIdentifier, LocalHost, RemoteHost } from '@fieldfare/core';
+import { LocalHost, RemoteHost } from '@fieldfare/core';
 
 export function useKnownHosts(env) {
 	const [knownHosts, setKnownHosts] = useState(new Set());
@@ -33,7 +33,7 @@ export function useKnownHosts(env) {
 				return;
 			}
 			for await (const adminChunk of admins) {
-				const adminIdentifier = HostIdentifier.fromChunkIdentifier(adminChunk.id);
+				const {id:adminIdentifier} = await adminChunk.expand(0);
 				if(!prevKnownHosts.has(adminIdentifier)) {
 					if(!newKnownHosts) {
 						newKnownHosts = new Set(prevKnownHosts);
@@ -55,7 +55,7 @@ export function useKnownHosts(env) {
 					continue;
 				}
 				for await (const providerChunk of providers) {
-					const providerIdentifier = HostIdentifier.fromChunkIdentifier(providerChunk.id);
+					const {id:providerIdentifier} = providerChunk.expand(0);
 					if(!prevKnownHosts.has(providerIdentifier)) {
 						if(!newKnownHosts) {
 							newKnownHosts = new Set(prevKnownHosts);
