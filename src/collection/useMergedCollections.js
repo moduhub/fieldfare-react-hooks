@@ -1,25 +1,22 @@
 import { useEffect, useState, useRef } from "react";
 import { useContents } from "./useContents.js";
 import {
-    HostIdentifier, Collection, LocalHost,
+    Collection, LocalHost,
     ChunkList, ChunkSet, ChunkMap
 } from "@fieldfare/core";
 
+const transformHostIdentifiers = async (chunk) => {
+    const {id} = await chunk.expand(0);
+    return id;
+};
+
 export function useMergedCollections(env, uuid, elementName, transform=(keyChunk,valueChunk)=>valueChunk?valueChunk:keyChunk) {
     const [contents, setContents] = useState(() => new Map());
-    const providersIdentifiers = useContents(env?.localCopy, uuid+'.providers');
+    const providersIdentifiers = useContents(env?.localCopy, uuid+'.providers', transformHostIdentifiers);
+    console.log('providersIdentifiers', providersIdentifiers);
     const listeners = useRef();
+    const pendingUpdates = useRef();
     useEffect(() => {
-        if(!env || !uuid || !providersIdentifiers) {
-            return;
-        }
-        if(providersIdentifiers.status !== 'loaded'
-        || !providersIdentifiers.contents?.size) {
-            return;
-        }
-        if(!listeners.current) {
-            listeners.current = new Map();
-        }
         const updateFromCollection = async (collection, newContents) => {
             const element = await collection.getElement(elementName);
             if(element) {
@@ -55,46 +52,81 @@ export function useMergedCollections(env, uuid, elementName, transform=(keyChunk
             }
             return newContents;
         };
+        const mergeCollections = async () => {
+            let mergedContents;
+            if(!pendingUpdates.current?.length) {
+                return;
+            }
+            for(const collection of pendingUpdates.current) {
+                const newContents = await updateFromCollection(collection, mergedContents);
+                if(newContents) {
+                    mergedContents = newContents;
+                }
+            }
+            pendingUpdates.current = [];
+            return mergedContents;
+        }
+        const interval = setInterval(() => {
+            mergeCollections().then(mergedContents => {
+                if(mergedContents) {
+                    setContents(mergedContents);
+                }
+            }).catch(error => {
+                console.error('error while merging collections', error);
+            });
+        }, 1000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, []);
+    useEffect(() => {
+        if(providersIdentifiers.status !== 'loaded'
+        || !providersIdentifiers.contents?.size) {
+            return;
+        }
+        if(!listeners.current) {
+            listeners.current = new Map();
+        }
         const assignListeners = async () => {
-            let newMergedContents = undefined;
-            for(const [chunkIdentifier] of providersIdentifiers.contents) {
+            for(const [chunkIdentifier, hostIdentifier] of providersIdentifiers.contents) {
                 if(!listeners.current.has(chunkIdentifier)) {
-                    const providerIdentifier = HostIdentifier.fromChunkIdentifier(chunkIdentifier);
                     let collection;
-                    if(providerIdentifier === LocalHost.getID()) {
+                    if(hostIdentifier === LocalHost.getID()) {
                         collection = await Collection.getLocalCollection(uuid);
                     } else {
-                        collection = await Collection.getRemoteCollection(providerIdentifier, uuid);
+                        collection = await Collection.getRemoteCollection(hostIdentifier, uuid);
                     }
+                    console.log('set listener before ' + hostIdentifier, collection);
                     const listener = collection.events.on('change', () => {
                         console.log('yyy collection change event', collection);
-                        updateFromCollection(collection).then(newContents => {
-                            if(newContents) {
-                                setContents(newContents);
-                            }
-                        }).catch((error) => {
-                            console.error('Error while updating collection', error);
-                        });
+                        if(!pendingUpdates.current) {
+                            pendingUpdates.current = [];
+                        }
+                        pendingUpdates.current = [...pendingUpdates.current, collection];
                     });
                     listeners.current.set(chunkIdentifier, {listener, collection});
-                    newMergedContents = await updateFromCollection(collection, newMergedContents);
+                    if(!pendingUpdates.current) {
+                        pendingUpdates.current = [];
+                    }
+                    pendingUpdates.current = [...pendingUpdates.current, collection];
+                    console.log('set listener after ' + hostIdentifier, collection);
                 }
             }
+            console.log('entering listener garbage collect', providersIdentifiers.contents);
             for(const [chunkIdentifier, {listener, collection}] of listeners.current) {
                 if(!providersIdentifiers.contents.has(chunkIdentifier)) {
-                    collection.events.removeEventListener(listener);
-                    listeners.current.delete(chunkIdentifier);
+                    // collection.events.removeEventListener(listener);
+                    // listeners.current.delete(chunkIdentifier);
+                    console.log('del listener ' + chunkIdentifier, collection);
+                } else {
+                    console.log('keep listener ' + chunkIdentifier, collection);
                 }
             }
-            return newMergedContents;
+            console.log('currentListeners', listeners.current);
         };
-        assignListeners().then(newMergedContents => {
-            if(newMergedContents) {
-                setContents(newMergedContents);
-            }
-        }).catch((error) => {
-            console.error('Error while merging collections');
+        assignListeners().catch((error) => {
+            console.error('Error while merging collections', error);
         });
-    }, [env, uuid, elementName, providersIdentifiers]);
+    }, [providersIdentifiers]);
     return contents;
 }
