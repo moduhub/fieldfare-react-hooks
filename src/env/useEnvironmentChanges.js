@@ -1,11 +1,9 @@
 import { useState, useEffect, useContext } from 'react';
-import { EnvironmentContext } from './FieldfareContext.js';
 import { LocalHost, VersionChain } from '@fieldfare/core';
 
-export function useEnvironmentChanges(maxChanges) {
+export function useEnvironmentChanges(env, maxChanges) {
     const [status, setStatus] = useState('loading'); // 'loading', 'loaded', 'error'
     const [changes, setChanges] = useState([]);
-    const env = useContext(EnvironmentContext);
     useEffect(() => {
         if(!env) {
             return;

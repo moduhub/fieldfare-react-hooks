@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { HostIdentifier, LocalHost, RemoteHost, Utils } from "@fieldfare/core";
+import { LocalHost, RemoteHost } from "@fieldfare/core";
+import { useContents } from '../collection/index.js';
 
 export function useSelectedProviders(env, serviceUUID, filters, quantity) {
     const [selectedProviders, setSelectedProviders] = useState({
@@ -9,11 +10,14 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
     function toSpliced(array, start, deleteCount, ...items) {
 	    return array.slice(0, start).concat(items, array.slice(start + deleteCount));
     }
+    const providers = useContents(env?.localCopy, serviceUUID+'.providers', async (chunk) => {
+        const {id} = await chunk.expand(0);
+        return id;
+    });
     useEffect(() => {
         const offlineEventHandler = RemoteHost.on('offline', (newOfflineHost) => {
             for(const [index, onlineHost] of selectedProviders.online.entries()) {
                 if(onlineHost.id == newOfflineHost.id) {
-                    console.log(onlineHost.id + ' is now offline');
                     setSelectedProviders({
                         online: toSpliced(selectedProviders.online, index, 1),
                         offline: [...(selectedProviders.offline), newOfflineHost]
@@ -45,55 +49,39 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
         }
     }, [selectedProviders]);
     useEffect(() => {
-        if(!serviceUUID
-        || Utils.isUUID(serviceUUID) == false) {
-            console.log('ProviderSelector failed, no service uuid');
+        if(providers.status !== 'loaded') {
             return;
         }
-        if(!env) {
-            console.log('ProviderSelector failed, no environment');
-            return;
-        }
-        env.localCopy.getElement(serviceUUID + '.providers')
-        .then((providers) => {
-            if(!providers) {
-                return Promise.reject('No providers found');
+        //TODO: randomize array
+        const newOnlineProviders = [];
+        const newOfflineProviders = [];
+        for(const [chunkIdentifier, hostIdentifier] of providers.contents) {
+            const remoteHost = RemoteHost.fromHostIdentifier(hostIdentifier);
+            if(remoteHost.isActive()) {
+                newOnlineProviders.push(remoteHost);
+                if(newOnlineProviders.length == quantity) {
+                    break;
+                }
             }
-            return providers.toArray();
-        }).then((providersArray) => {
-            //TODO: randomize array
-            const newOnlineProviders = [];
-            const newOfflineProviders = [];
-            for(const chunk of providersArray) {
-                const hostIdentifier = HostIdentifier.fromChunkIdentifier(chunk.id);
+        }
+        if(newOnlineProviders.length < quantity) {
+            const remaining = quantity - newOnlineProviders.length;
+            for(const [chunkIdentifier, hostIdentifier] of providers.contents) {
                 const remoteHost = RemoteHost.fromHostIdentifier(hostIdentifier);
-                if(remoteHost.isActive()) {
-                    newOnlineProviders.push(remoteHost);
-                    if(newOnlineProviders.length == quantity) {
+                if(!remoteHost.isActive()) {
+                    newOfflineProviders.push(remoteHost);
+                    LocalHost.establish(remoteHost);
+                    if(newOfflineProviders.length == remaining) {
                         break;
                     }
                 }
             }
-            if(newOnlineProviders.length < quantity) {
-                const remaining = quantity - newOnlineProviders.length;
-                for(const chunk of providersArray) {
-                    const hostIdentifier = HostIdentifier.fromChunkIdentifier(chunk.id);
-                    const remoteHost = RemoteHost.fromHostIdentifier(hostIdentifier);
-                    if(!remoteHost.isActive()) {
-                        newOfflineProviders.push(remoteHost);
-                        LocalHost.establish(remoteHost);
-                        if(newOfflineProviders.length == remaining) {
-                            break;
-                        }
-                    }
-                }
-            }
-            // setSelectedProviders(newSelectedProviders);
-            setSelectedProviders({
-                online: newOnlineProviders,
-                offline: newOfflineProviders
-            });
+        }
+        // setSelectedProviders(newSelectedProviders);
+        setSelectedProviders({
+            online: newOnlineProviders,
+            offline: newOfflineProviders
         });
-    }, [env, serviceUUID, filters, quantity]);
+    }, [providers, filters, quantity]);
     return selectedProviders;
 }
