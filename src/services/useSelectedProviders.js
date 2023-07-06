@@ -7,6 +7,9 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
         online: [],
         offline: []
     });
+    function toSpliced(array, start, deleteCount, ...items) {
+	    return array.slice(0, start).concat(items, array.slice(start + deleteCount));
+    }
     const providers = useContents(env?.localCopy, serviceUUID+'.providers', async (chunk) => {
         const {id} = await chunk.expand(0);
         return id;
@@ -16,7 +19,7 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
             for(const [index, onlineHost] of selectedProviders.online.entries()) {
                 if(onlineHost.id == newOfflineHost.id) {
                     setSelectedProviders({
-                        online: selectedProviders.online.toSpliced(index, 1),
+                        online: toSpliced(selectedProviders.online, index, 1),
                         offline: [...(selectedProviders.offline), newOfflineHost]
                     });
                     break;
@@ -28,7 +31,7 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
                 if(offlineHost.id == newOnlineHost.id) {
                     setSelectedProviders({
                         online: [...(selectedProviders.online), newOnlineHost],
-                        offline: selectedProviders.offline.toSpliced(index, 1)
+                        offline: toSpliced(selectedProviders.offline, index, 1)
                     });
                     break;
                 }
