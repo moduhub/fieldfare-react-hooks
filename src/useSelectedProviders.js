@@ -6,7 +6,7 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
         online: [],
         offline: []
     });
-    function sliceAndConcat(array, start, deleteCount, ...items) {
+    function toSpliced(array, start, deleteCount, ...items) {
 	    return array.slice(0, start).concat(items, array.slice(start + deleteCount));
     }
     useEffect(() => {
@@ -15,7 +15,7 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
                 if(onlineHost.id == newOfflineHost.id) {
                     console.log(onlineHost.id + ' is now offline');
                     setSelectedProviders({
-                        online: sliceAndConcat(selectedProviders.online, index, 1),
+                        online: toSpliced(selectedProviders.online, index, 1),
                         offline: [...(selectedProviders.offline), newOfflineHost]
                     });
                     break;
@@ -27,7 +27,7 @@ export function useSelectedProviders(env, serviceUUID, filters, quantity) {
                 if(offlineHost.id == newOnlineHost.id) {
                     setSelectedProviders({
                         online: [...(selectedProviders.online), newOnlineHost],
-                        offline: sliceAndConcat(selectedProviders.offline, index, 1)
+                        offline: toSpliced(selectedProviders.offline, index, 1)
                     });
                     break;
                 }
