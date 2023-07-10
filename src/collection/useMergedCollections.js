@@ -1,87 +1,43 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useImmerReducer } from 'use-immer';
 import { useContents } from "./useContents.js";
 import {
     Collection, LocalHost,
     ChunkList, ChunkSet, ChunkMap
 } from "@fieldfare/core";
+import { chunkMapReducer } from "./useContents.js";
 
-const transformHostIdentifiers = async (chunk) => {
-    const {id} = await chunk.expand(0);
-    return id;
+const initialState = {
+    status: 'loading',
+    contents: new Map(),
+    error: undefined,
 };
 
-export function useMergedCollections(env, uuid, elementName, transform=(keyChunk,valueChunk)=>valueChunk?valueChunk:keyChunk) {
-    const [contents, setContents] = useState(() => new Map());
-    const providersIdentifiers = useContents(env?.localCopy, uuid+'.providers', transformHostIdentifiers);
-    console.log('providersIdentifiers', providersIdentifiers);
-    const listeners = useRef();
-    const pendingUpdates = useRef();
-    useEffect(() => {
-        const updateFromCollection = async (collection, newContents) => {
-            const element = await collection.getElement(elementName);
-            if(element) {
-                if(element instanceof ChunkSet
-                || element instanceof ChunkList) {
-                    for await (const chunk of element.chunks()) {
-                        const chunkIdentifier = chunk.id;
-                        if(!contents.has(chunkIdentifier)) {
-                            if(!newContents) {
-                                newContents = new Map(contents);
-                            }
-                            const transformed = await transform(chunk);
-                            newContents.set(chunkIdentifier, transformed);
-                        }
-                    }
-                } else 
-                if(element instanceof ChunkMap) {
-                    for await (const [keyChunk, valueChunk] of element) {
-                        const chunkIdentifier = keyChunk.id;
-                        if(!contents.has(chunkIdentifier)) {
-                            if(!newContents) {
-                                newContents = new Map(contents);
-                            }
-                            const transformed = await transform(keyChunk, valueChunk);
-                            newContents.set(chunkIdentifier, transformed);
-                        }
-                    }
-                } else {
-                    //throw Error('INVALID_TYPE'); //To be decided: throw or ignore?
-                    console.error('INVALID_TYPE');
-                    return;
-                }
-            }
-            return newContents;
-        };
-        const mergeCollections = async () => {
-            let mergedContents;
-            if(!pendingUpdates.current?.length) {
-                return;
-            }
-            for(const collection of pendingUpdates.current) {
-                const newContents = await updateFromCollection(collection, mergedContents);
-                if(newContents) {
-                    mergedContents = newContents;
-                }
-            }
-            pendingUpdates.current = [];
-            return mergedContents;
-        }
-        const interval = setInterval(() => {
-            mergeCollections().then(mergedContents => {
-                if(mergedContents) {
-                    setContents(mergedContents);
-                }
-            }).catch(error => {
-                console.error('error while merging collections', error);
-            });
-        }, 1000);
-        return () => {
-            clearInterval(interval);
-        };
+export function useMergedCollections(env, uuid, elementName, transform, filter) {
+    const [state, dispatch] = useImmerReducer(chunkMapReducer, initialState);
+    const transformHostIdentifiers = useCallback(async (chunk) => {
+        const {id} = await chunk.expand(0);
+        return id;
     }, []);
+    const providersIdentifiers = useContents(env?.localCopy, uuid+'.providers', transformHostIdentifiers);
+    const expandedIdentifiers = useRef();
+    const listeners = useRef();
+    const [pendingUpdates, dispatchUpdate] = useImmerReducer((draft, action) => {
+        switch(action.type) {
+            case 'push':
+                draft.push(action.collection);
+                return draft;
+            case 'clear':
+                return [];
+            default:
+                throw Error('Invalid action type: ' + action.type);
+        }
+    }, []);
+    //Assign listeners to collections every time the provider list is updated
     useEffect(() => {
         if(providersIdentifiers.status !== 'loaded'
         || !providersIdentifiers.contents?.size) {
+            console.error('providersIdentifiers not loaded', providersIdentifiers);
             return;
         }
         if(!listeners.current) {
@@ -96,37 +52,132 @@ export function useMergedCollections(env, uuid, elementName, transform=(keyChunk
                     } else {
                         collection = await Collection.getRemoteCollection(hostIdentifier, uuid);
                     }
-                    console.log('set listener before ' + hostIdentifier, collection);
                     const listener = collection.events.on('change', () => {
                         console.log('yyy collection change event', collection);
-                        if(!pendingUpdates.current) {
-                            pendingUpdates.current = [];
-                        }
-                        pendingUpdates.current = [...pendingUpdates.current, collection];
+                        dispatchUpdate({type: 'push', collection});
                     });
                     listeners.current.set(chunkIdentifier, {listener, collection});
-                    if(!pendingUpdates.current) {
-                        pendingUpdates.current = [];
-                    }
-                    pendingUpdates.current = [...pendingUpdates.current, collection];
-                    console.log('set listener after ' + hostIdentifier, collection);
+                    dispatchUpdate({type: 'push', collection}); //force initial update
                 }
             }
-            console.log('entering listener garbage collect', providersIdentifiers.contents);
             for(const [chunkIdentifier, {listener, collection}] of listeners.current) {
                 if(!providersIdentifiers.contents.has(chunkIdentifier)) {
-                    // collection.events.removeEventListener(listener);
-                    // listeners.current.delete(chunkIdentifier);
-                    console.log('del listener ' + chunkIdentifier, collection);
-                } else {
-                    console.log('keep listener ' + chunkIdentifier, collection);
+                    collection.events.removeEventListener(listener);
+                    listeners.current.delete(chunkIdentifier);
                 }
             }
-            console.log('currentListeners', listeners.current);
         };
         assignListeners().catch((error) => {
             console.error('Error while merging collections', error);
         });
     }, [providersIdentifiers]);
-    return contents;
+    //Reload all collections when base props change
+    useEffect(() => {
+        if(providersIdentifiers.status !== 'loaded'
+        || !providersIdentifiers.contents?.size) {
+            console.error('providersIdentifiers not loaded', providersIdentifiers);
+            return;
+        }
+        expandedIdentifiers.current = new Set();
+        dispatch({type: 'reset'});
+        const reloadCollections = async () => {
+            for(const [chunkIdentifier, hostIdentifier] of providersIdentifiers.contents) {
+                let collection;
+                if(hostIdentifier === LocalHost.getID()) {
+                    collection = await Collection.getLocalCollection(uuid);
+                } else {
+                    collection = await Collection.getRemoteCollection(hostIdentifier, uuid);
+                }
+                dispatchUpdate({type: 'push', collection});
+                console.log('dispatchUpdate push 1', collection);
+            }
+        };
+        reloadCollections().catch((error) => {
+            console.error('Error while merging collections', error);
+        });
+    }, [transform, filter]);
+    //Process collection updates when they are generated
+    useEffect(() => {
+        if(!expandedIdentifiers.current) {
+            expandedIdentifiers.current = new Set();
+        }
+        const getCollectionChanges = async (collection) => {
+            const element = await collection.getElement(elementName);
+            if(!element) {
+                throw Error('NOT_FOUND'); //To be decided: throw or ignore?
+            }
+            if(element instanceof ChunkSet === false
+            && element instanceof ChunkList === false
+            && element instanceof ChunkMap === false) {
+                console.log('getCollectionChanges invalid type', element);
+                throw Error('INVALID_TYPE');
+            }
+            let added;
+            for await (const item of element) {
+                let keyChunk = item;
+                let valueChunk;
+                if(element instanceof ChunkMap) {
+                    keyChunk = item[0];
+                    valueChunk = item[1];
+                }
+                const chunkIdentifier = keyChunk.id;
+                if(!expandedIdentifiers.current.has(chunkIdentifier)) {
+                    if(transform) {
+                        let transformed;
+                        if(valueChunk) {
+                            transformed = await transform(keyChunk, valueChunk);
+                        } else {
+                            transformed = await transform(keyChunk);
+                        }
+                        if(filter
+                        && !await filter(transformed)) {
+                            continue;
+                        }
+                        if(!added) {
+                            added = new Map();
+                        }
+                        added.set(chunkIdentifier, transformed);
+                    } else {
+                        if(filter
+                        && !await filter(valueChunk)) {
+                            continue;
+                        }
+                        added.set(chunkIdentifier, valueChunk);
+                    }
+                }
+            }
+            let deleted;
+            for(const chunkIdentifier of expandedIdentifiers.current) {
+                if(!await element.has(Chunk.fromIdentifier(chunkIdentifier))) {
+                    if(!deleted) {
+                        deleted = new Set();
+                    }
+                    deleted.add(chunkIdentifier);
+                    expandedIdentifiers.current.delete(chunkIdentifier);
+                }
+            }
+            return {added, deleted};
+        };
+        const processUpdates = async () => {
+            console.log('processing updates', pendingUpdates);
+            for(const collection of pendingUpdates) {
+                const {added, deleted} = await getCollectionChanges(collection);
+                if(added) {
+                    console.log('added', added);
+                    dispatch({type: 'added', added});
+                }
+                if(deleted) {
+                    console.log('deleted', deleted);
+                    dispatch({type: 'deleted', deleted});
+                }
+            }
+            dispatchUpdate({type: 'clear'});
+        }
+        if(pendingUpdates.length > 0) {
+            processUpdates().catch((error) => {
+                console.error('Error while merging collections', error);
+            });
+        }
+    }, [pendingUpdates]);
+    return state.contents;
 }
