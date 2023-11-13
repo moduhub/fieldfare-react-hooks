@@ -124,7 +124,7 @@ export function useContents(collection, elementName, transform = (chunk) => chun
             }
         })
         .catch(error => {
-            dispatch({status: 'error', error});
+            dispatch({type: 'error', error});
         });
     }, [collection, elementName, eventCounter]);
     useEffect(() => {
