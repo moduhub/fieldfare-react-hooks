@@ -1,7 +1,14 @@
 import { useReducer, useEffect } from 'react';
 import { Environment, LocalHost } from '@fieldfare/core';
 
-export function useEnvironment(uuid, webports) {
+/**
+ * A custom React hook that initializes and manages the Fieldfare environment.
+ * @param {string} uuid - The UUID of the environment to initialize.
+ * @param {string} webports - A comma-separated string of webports to connect to.
+ * @param {Environment} [EnvironmentClass=Environment] - The class to use for the environment.
+ * @returns {Object} An object containing the current status, error (if any), environment, and version.
+ */
+export function useEnvironment(uuid, webports, EnvironmentClass=Environment) {
     const initialState = {
         status: 'loading',
         error: undefined,
@@ -48,7 +55,7 @@ export function useEnvironment(uuid, webports) {
             return;
         }
         const setupEnvironment = async () => {
-            const newEnv = new Environment(uuid);
+            const newEnv = new EnvironmentClass(uuid);
             await newEnv.init();
             await LocalHost.join(newEnv);
             return newEnv;
