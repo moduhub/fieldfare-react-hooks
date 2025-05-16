@@ -44,7 +44,9 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
             listeners.current = new Map();
         }
         const assignListeners = async () => {
+            // console.log('assignListeners ' + uuid + ' - 1');
             for(const [chunkIdentifier, hostIdentifier] of providersIdentifiers.contents) {
+                // console.log('assignListeners ' + uuid + ' - 2', hostIdentifier);
                 if(!listeners.current.has(chunkIdentifier)) {
                     let collection;
                     if(hostIdentifier === LocalHost.getID()) {
@@ -52,10 +54,12 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                     } else {
                         collection = await Collection.getRemoteCollection(hostIdentifier, uuid);
                     }
+                    // console.log('assignListeners ' + uuid + ' - 3', collection.events);
                     const listener = collection.events.on('change', () => {
-                        console.log('yyy collection change event', collection);
+                        console.log('assignListeners ' + uuid + ' - event');
                         dispatchUpdate({type: 'push', collection});
                     });
+                    // console.log('assignListeners ' + uuid + ' - 4', collection.events.listeners.get('change'));
                     listeners.current.set(chunkIdentifier, {listener, collection});
                     dispatchUpdate({type: 'push', collection}); //force initial update
                 }
@@ -78,7 +82,7 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
             console.error('providersIdentifiers not loaded', providersIdentifiers);
             return;
         }
-        expandedIdentifiers.current = new Set();
+        expandedIdentifiers.current = new Map();
         dispatch({type: 'reset'});
         const reloadCollections = async () => {
             for(const [chunkIdentifier, hostIdentifier] of providersIdentifiers.contents) {
@@ -99,7 +103,7 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
     //Process collection updates when they are generated
     useEffect(() => {
         if(!expandedIdentifiers.current) {
-            expandedIdentifiers.current = new Set();
+            expandedIdentifiers.current = new Map();
         }
         const getCollectionChanges = async (collection) => {
             const element = await collection.getElement(elementName);
@@ -112,7 +116,7 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                 console.log('getCollectionChanges invalid type', element);
                 throw Error('INVALID_TYPE');
             }
-            let added;
+            let added, changed;
             for await (const item of element) {
                 let keyChunk = item;
                 let valueChunk;
@@ -121,7 +125,21 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                     valueChunk = item[1];
                 }
                 const chunkIdentifier = keyChunk.id;
-                if(!expandedIdentifiers.current.has(chunkIdentifier)) {
+                const expandedValue = expandedIdentifiers.current.get(chunkIdentifier);
+                let addedOrChanged;
+                if(expandedValue === undefined) {
+                    if(!added) {
+                        added = new Map();
+                    }
+                    addedOrChanged = added;
+                } else 
+                if(expandedValue !== expandedValue) {
+                    if(!changed) {
+                        changed = new Map();
+                    }
+                    addedOrChanged = changed;
+                }
+                if(addedOrChanged) {
                     if(transform) {
                         let transformed;
                         if(valueChunk) {
@@ -133,16 +151,13 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                         && !await filter(transformed)) {
                             continue;
                         }
-                        if(!added) {
-                            added = new Map();
-                        }
-                        added.set(chunkIdentifier, transformed);
+                        addedOrChanged.set(chunkIdentifier, transformed);
                     } else {
                         if(filter
                         && !await filter(valueChunk)) {
                             continue;
                         }
-                        added.set(chunkIdentifier, valueChunk);
+                        addedOrChanged.set(chunkIdentifier, valueChunk);
                     }
                 }
             }
@@ -156,12 +171,12 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                     expandedIdentifiers.current.delete(chunkIdentifier);
                 }
             }
-            return {added, deleted};
+            return {added, deleted, changed};
         };
         const processUpdates = async () => {
             console.log('processing updates', pendingUpdates);
             for(const collection of pendingUpdates) {
-                const {added, deleted} = await getCollectionChanges(collection);
+                const {added, deleted, changed} = await getCollectionChanges(collection);
                 if(added) {
                     console.log('added', added);
                     dispatch({type: 'added', added});
@@ -169,6 +184,9 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                 if(deleted) {
                     console.log('deleted', deleted);
                     dispatch({type: 'deleted', deleted});
+                }
+                if(changed) {
+                    console.log('changed', changed);
                 }
             }
             dispatchUpdate({type: 'clear'});
