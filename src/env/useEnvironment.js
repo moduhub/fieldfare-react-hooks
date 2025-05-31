@@ -45,6 +45,13 @@ export function useEnvironment(uuid, webports, EnvironmentClass=Environment) {
         }
     }, initialState);
     useEffect(() => {
+        if(!uuid) {
+            dispatch({
+                status: 'error',
+                error: new Error('No UUID provided')
+            });
+            return;
+        }
         let env = LocalHost.getEnvironment(uuid);
         if(env) {
             dispatch({
@@ -75,6 +82,9 @@ export function useEnvironment(uuid, webports, EnvironmentClass=Environment) {
         });
     }, [uuid]);
     useEffect(() => {
+        if(!webports) {
+            return;
+        }
         const webportStringList = webports.split(',');
         for (const webportString of webportStringList) {
             const webportStringParts = webportString.split(':');
