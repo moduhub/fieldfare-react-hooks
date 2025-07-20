@@ -88,7 +88,7 @@ export function useContents(collection, elementName, transform = (chunk) => chun
         const getChanges = async () => {
             let added;
             const element = await getElement();
-            for await (const chunk of element) {
+            for await (const chunk of element.chunks()) {
                 const chunkIdentifier = chunk.id;
                 if(!expandedIdentifiers.current.has(chunkIdentifier)) {
                     const transformed = await transform(chunk);
