@@ -93,7 +93,6 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
                     collection = await Collection.getRemoteCollection(hostIdentifier, uuid);
                 }
                 dispatchUpdate({type: 'push', collection});
-                console.log('dispatchUpdate push 1', collection);
             }
         };
         reloadCollections().catch((error) => {
@@ -108,6 +107,7 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
         const getCollectionChanges = async (collection) => {
             const element = await collection.getElement(elementName);
             if(!element) {
+                console.log('getCollectionChanges element not found ', elementName);
                 throw Error('NOT_FOUND'); //To be decided: throw or ignore?
             }
             if(element instanceof ChunkSet === false
@@ -178,11 +178,11 @@ export function useMergedCollections(env, uuid, elementName, transform, filter) 
             for(const collection of pendingUpdates) {
                 const {added, deleted, changed} = await getCollectionChanges(collection);
                 if(added) {
-                    console.log('added', added);
+                    // console.log('added', added);
                     dispatch({type: 'added', added});
                 }
                 if(deleted) {
-                    console.log('deleted', deleted);
+                    // console.log('deleted', deleted);
                     dispatch({type: 'deleted', deleted});
                 }
                 if(changed) {

@@ -28,7 +28,7 @@ export function chunkMapReducer(draft, action) {
                 draft.contents = new Map(action.added);
             }
             for(const [chunkIdentifier, transformed] of action.added) {
-                console.log('reducer added', chunkIdentifier);
+                // console.log('reducer added', chunkIdentifier);
                 draft.contents.set(chunkIdentifier, transformed);
             }
             draft.status = 'loaded';
@@ -37,7 +37,7 @@ export function chunkMapReducer(draft, action) {
         case 'deleted': {
             if(draft.contents) {
                 for(const chunkIdentifier of action.deleted) {
-                    console.log('reducer deleted', chunkIdentifier);
+                    // console.log('reducer deleted', chunkIdentifier);
                     draft.contents.delete(chunkIdentifier);
                 }
             }
@@ -133,7 +133,7 @@ export function useContents(collection, elementName, transform = (chunk) => chun
             return;
         }
         const listener = collection.events.on(elementName + '.change', (chunkSet) => {
-            console.log('useContents onChange counter:'+eventCounter);
+            // console.log('useContents onChange counter:'+eventCounter);
             setEventCounter(eventCounter + 1);
         });
         return () => {
